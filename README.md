@@ -1,5 +1,5 @@
-# vault_migration
-Util to copy secret enginefrom one Vault to another
+# Hashicorp Vault Migration Util
+Util to copy secret engine from one Vault to another
 
 # Usage
 ```console
