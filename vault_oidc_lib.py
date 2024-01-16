@@ -93,7 +93,7 @@ class VaultOIDCHandler:
         httpd.handle_request()
         return httpd.token
 
-# migrate all keys on engine
+# migrate all secrets with versioning on engine
 def migrate_engine(client_old, client_new , engine, new_path_prefix=None, new_engine_name=None):
     keys_list = []
     def process_metadata(metadata,prefix=""):
@@ -105,33 +105,54 @@ def migrate_engine(client_old, client_new , engine, new_path_prefix=None, new_en
             else:
                 path = prefix+data
                 try:
-                    value = client_old.secrets.kv.v2.read_secret_version(
-                        mount_point=engine, path=path)
-                    new_engine = engine
-
-                    if new_engine_name != None:
-                        new_engine = new_engine_name
-                    output_path = path
-
-                    if new_path_prefix != None:
-                        output_path = new_path_prefix + path
-
-                    client_new.secrets.kv.v2.create_or_update_secret(
-                        mount_point=new_engine,
-                        path=output_path,
-                        secret=value["data"]["data"],
+                    hvac_path_metadata = client_old.secrets.kv.v2.read_secret_metadata(
+                        path=path,
+                        mount_point=engine,
                     )
-                    # THIS IS FOR DELETE MIGRATED KEYS ON NEW. TESTING ONLY
+
+                    old_ver=hvac_path_metadata['data']['current_version']
+
+                    for i in range(1,old_ver+1):
+                        value = client_old.secrets.kv.v2.read_secret_version(
+                            mount_point=engine,
+                            path=path,
+                            version=i
+                        )
+                        new_engine = engine
+
+                        if new_engine_name != None:
+                            new_engine = new_engine_name
+                        output_path = path
+
+                        if new_path_prefix != None:
+                            output_path = new_path_prefix + path
+
+                        client_new.secrets.kv.v2.create_or_update_secret(
+                            mount_point=new_engine,
+                            path=output_path,
+                            secret=value["data"]["data"],
+                        )
+
+                    print("path", output_path, "written")
+
+                    # THIS IS FOR DELETE MIGRATED KEYS ON NEW. NEED TO CREATE NEW FUNCTION TO DELETE
+                    # new_engine = engine
+
+                    # if new_engine_name != None:
+                    #     new_engine = new_engine_name
+                    # output_path = path
+
+                    # if new_path_prefix != None:
+                    #     output_path = new_path_prefix + path
+                    
                     # client_new.secrets.kv.v2.delete_metadata_and_all_versions(
                     #     mount_point=new_engine,
                     #     path=output_path,
                     # )
+                    
                     keys_list.append(output_path)
                 except hvac.exceptions.InvalidPath:
                     print(path, "not valid, continuing with next")
-                except Exception as e:
-                    print(f"Caught an exception: {e}")
-                    sys.exit(1)
                     
     engine_data = client_old.adapter.request("GET", f"v1/{engine}/metadata/?list=1")
     process_metadata(engine_data)
