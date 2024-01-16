@@ -3,6 +3,7 @@ import http.server
 import hvac
 import urllib.parse
 from http.server import BaseHTTPRequestHandler, HTTPServer
+import sys
 
 # CHANGEME: these params might have to be changed to match your Vault configuration.
 # Specifically
@@ -99,21 +100,27 @@ def migrate_engine(client_old, client_new , engine, new_path_prefix=None, new_en
         for data in metadata["data"]["keys"]:
             if '/' in data:
                 prefix_next= prefix + data
-                keys_on_data = client_old.adapter.request("GET", f"v1/{engine}/metadata/{data}/?list=1")
+                keys_on_data = client_old.adapter.request("GET", f"v1/{engine}/metadata/{prefix_next}/?list=1")
                 process_metadata(keys_on_data,prefix_next)
             else:
                 path = prefix+data
                 keys_list.append(path)
-                value = client_old.secrets.kv.v2.read_secret_version(
-                    mount_point=engine, path=path)
-                new_engine = engine
-                if new_engine_name != None:
-                    new_engine = new_engine_name
-                client_new.secrets.kv.v2.create_or_update_secret(
-                    mount_point=new_engine,
-                    path=new_path_prefix + path,
-                    secret=value["data"]["data"],
-                )
+                try:
+                    value = client_old.secrets.kv.v2.read_secret_version(
+                        mount_point=engine, path=path)
+                    new_engine = engine
+                    if new_engine_name != None:
+                        new_engine = new_engine_name
+                    client_new.secrets.kv.v2.create_or_update_secret(
+                        mount_point=new_engine,
+                        path=new_path_prefix + path,
+                        secret=value["data"]["data"],
+                    )
+                except hvac.exceptions.InvalidPath:
+                    print(path, "not valid, continuing with next")
+                except Exception as e:
+                    print(f"Caught an exception: {e}")
+                    sys.exit(1)
                     
     engine_data = client_old.adapter.request("GET", f"v1/{engine}/metadata/?list=1")
     process_metadata(engine_data)
