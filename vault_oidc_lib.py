@@ -104,18 +104,29 @@ def migrate_engine(client_old, client_new , engine, new_path_prefix=None, new_en
                 process_metadata(keys_on_data,prefix_next)
             else:
                 path = prefix+data
-                keys_list.append(path)
                 try:
                     value = client_old.secrets.kv.v2.read_secret_version(
                         mount_point=engine, path=path)
                     new_engine = engine
+
                     if new_engine_name != None:
                         new_engine = new_engine_name
+                    output_path = path
+
+                    if new_path_prefix != None:
+                        output_path = new_path_prefix + path
+
                     client_new.secrets.kv.v2.create_or_update_secret(
                         mount_point=new_engine,
-                        path=new_path_prefix + path,
+                        path=output_path,
                         secret=value["data"]["data"],
                     )
+                    # THIS IS FOR DELETE MIGRATED KEYS ON NEW. TESTING ONLY
+                    # client_new.secrets.kv.v2.delete_metadata_and_all_versions(
+                    #     mount_point=new_engine,
+                    #     path=output_path,
+                    # )
+                    keys_list.append(output_path)
                 except hvac.exceptions.InvalidPath:
                     print(path, "not valid, continuing with next")
                 except Exception as e:
