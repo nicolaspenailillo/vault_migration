@@ -1,5 +1,5 @@
 # Hashicorp Vault Migration Util
-Util to copy secret engine from one Vault to another
+Util to copy secret engine from one Vault to another with OIDC authentication
 
 # Usage
 ```console
